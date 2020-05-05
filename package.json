@@ -1,12 +1,12 @@
 {
-  "name": "flexbot",
+  "name": "FlexBot",
   "version": "1.0.0",
-  "description": "Logging trading positions.",
+  "description": "Discord bot for pulling cryptocurrency price data and logging trading positions.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "piper_cucu",
+  "author": "pipercucu",
   "license": "ISC",
   "dependencies": {
     "coingecko-api": "^1.0.10",
