@@ -1,0 +1,10 @@
+{
+  "discordBotToken": "<your token here>",
+  "pgConfig": {
+    "user": "postgres",
+    "host": "localhost",
+    "database": "<your database name here>",
+    "password": "<your password here",
+    "port": 5432
+  }
+}
