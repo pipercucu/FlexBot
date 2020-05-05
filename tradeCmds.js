@@ -148,11 +148,19 @@ async function openPosition(msg, discordUserId, position, searchTerm) {
 
   let tokenData;
   try {
-    tokenData = await coinGeckoCmds.getPrice(searchTerm)
+    tokenData = await coinGeckoCmds.getPrice([searchTerm])
+    if (tokenData.unfound.length > 0) {
+      msg.reply("```Could not find search term: \"" + tokenData.unfound[0] + "\"```")
+      return;
+    }
+    else {
+      let tokenDataKeys = Object.keys(tokenData.found);
+      tokenData = tokenData.found[tokenDataKeys[0]];
+    }
   }
   catch (err) {
     console.log(err);
-    msg.reply("```Could not find search term: \"" + " searchTerm\"```")
+    msg.reply("```Could not find search term: \"" + searchTerm + "\"```")
     return;
   }
 
