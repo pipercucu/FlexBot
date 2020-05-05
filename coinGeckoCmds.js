@@ -61,6 +61,7 @@ async function getPrice(searchTerms) {
     let tokenTicker = foundSearchTerms[key].tokenTicker;
     foundSearchTerms[tokenTicker] = tokenData[key];
     foundSearchTerms[tokenTicker].name = utils.toTitleCase(foundSearchTerms[key].tokenName);
+    foundSearchTerms[tokenTicker].ticker = tokenTicker;
     delete foundSearchTerms[key];
   });
 
