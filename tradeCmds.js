@@ -169,7 +169,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     }
     let maxPage = Math.floor(res.rows.length/5) + ((res.rows.length % 5 == 0) ? 0 : 1);
     // tokenDataTable.push(`\n\n${totalDiff >= 0 ? '+' : '-'} Total PnL: $${totalDiff.toFixed(2)} (${((totalDiff / totalOpen) * 100).toFixed(2)}%)`);
-    tokenDataTable.push(`\n\n${res.rows.length} open positions found. Displaying page ${pageNum} of ${maxPage}`);
+    tokenDataTable.push(`\n\n${res.rows.length} open positions\nPage ${pageNum} of ${maxPage}`);
     tokenDataTable.push("```");
     return {
       table: '`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Trading Positions`\n' + tokenDataTable.join(''),
