@@ -2,26 +2,40 @@
 const auth = require('./auth.json');
 const pg = require('pg');
 
-const pgClient = new pg.Client({
-  user: auth.pgConfig.user,
-  host: auth.pgConfig.host,
-  database: auth.pgConfig.database,
-  password: auth.pgConfig.password,
-  port: auth.pgConfig.port
-});
-pgClient.connect();
+module.exports = {
+  createTables: createTables,
+  getPgClient: getPgClient
+}
 
-const tableName = "positions";
+function createTables() {
+  const pgClient = getPgClient();
+  pgClient.connect();
+  
+  const tableName = "positions";
+  
+  const createTableSql = `CREATE TABLE ${tableName} (
+  id SERIAL NOT NULL,
+  discordUserId VARCHAR(255) NOT NULL,
+  ticker VARCHAR(255) NOT NULL,
+  position VARCHAR(255) NOT NULL,
+  price DECIMAL NOT NULL,
+  opendatetime TIMESTAMP NOT NULL,
+  closedatetime TIMESTAMP
+  );`;
+  
+  pgClient.query(createTableSql, [], (err, res) => {
+    pgClient.end();
+  });
+}
 
-const createTableSql = `CREATE TABLE ${tableName} (
-id SERIAL NOT NULL,
-discordUserId VARCHAR(255) NOT NULL,
-ticker VARCHAR(255) NOT NULL,
-position VARCHAR(255) NOT NULL,
-price DECIMAL NOT NULL,
-datetime TIMESTAMP NOT NULL
-);`;
+function getPgClient() {
+  return new pg.Client({
+    user: auth.pgConfig.user,
+    host: auth.pgConfig.host,
+    database: auth.pgConfig.database,
+    password: auth.pgConfig.password,
+    port: auth.pgConfig.port
+  });
+}
 
-pgClient.query(createTableSql, [], (err, res) => {
-  pgClient.end();
-});
+require('make-runnable');

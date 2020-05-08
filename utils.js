@@ -15,6 +15,7 @@ module.exports = {
  * @param {string} pad String we're padding with, usually a number of spaces, e.g. '       '
  * @param {string} str String that we're padding e.g. '60.17'
  * @param {boolean} padLeft If true, then padding is on the left of the string, otherwise it's on the right
+ * @returns {string} The padded string e.g. '$60.17      '
 */
 function padString(pad, str, padLeft) {
   if (typeof str === 'undefined') 
@@ -29,6 +30,7 @@ function padString(pad, str, padLeft) {
 /**
  * See if a string matches a discord user identifier
  * @param {string} str String to check
+ * @returns {string} The parsed discord id if a match is found, e.g. 676989462969974844, otherwise returns null if it ain't found
 */
 function parseDiscordUserId(str) {
   let pattern = /<@![0-9]+>/g;
@@ -44,6 +46,7 @@ function parseDiscordUserId(str) {
 /**
  * Change a string to proper case, e.g. 'heya there' becomes 'Heya There'
  * @param {string} str String to check
+ * @returns {string}
 */
 function toTitleCase(str) {
   return str.replace(

@@ -1,17 +1,14 @@
 'use strict'
-const auth = require('./auth.json');
-const fs = require('fs');
+const dateformat = require('dateformat');
+const dbCmds = require('./dbCmds');
 const coinGeckoCmds = require('./coinGeckoCmds.js');
-const coinGeckoLookups = require('./common/coinGeckoLookups.json')
-const CoinGecko = require('coingecko-api');
-const pg = require('pg');
 const utils = require('./utils.js');
-
-const CoinGeckoClient = new CoinGecko();
 
 module.exports = {
   trade: trade
 }
+
+let positionCache;
 
 async function trade(msg, args, bot) {
   const discordUserId = msg.author.id;
@@ -63,13 +60,22 @@ async function trade(msg, args, bot) {
     case 'position':
     case 'positions':
       let posDiscordUserId = discordUserId;
+      let pageNum = 1;
       if (args.length > 2) {
-        let parsedUserId = utils.parseDiscordUserId(args[2]);
-        if (parsedUserId) {
-          posDiscordUserId = parsedUserId;
+        for (let arg of args) {
+          let parsedUserId = utils.parseDiscordUserId(arg);
+          if (parsedUserId) {
+            posDiscordUserId = parsedUserId;
+          }
+          /*
+          let parsedPageNum = utils.parsePageNum(arg);
+          if (parsedPageNum) {
+            pageNum = parsedPageNum;
+          }
+          */
         }
       }
-      getPositions(msg, posDiscordUserId, bot);
+      getPositions(msg, posDiscordUserId, pageNum, bot);
       break;
     default:
       msg.reply({ embed: helpEmbed });
@@ -81,8 +87,8 @@ async function trade(msg, args, bot) {
  * @param {object} msg Used by the bot to reply back or send messages in the discord server
  * @param {number} discordUserId Unique id for user in discord, used to pull back positions by user
 */
-async function getPositions(msg, discordUserId, bot) {
-  const pgClient = getPgClient();
+async function getPositions(msg, discordUserId, pageNum, bot) {
+  const pgClient = dbCmds.getPgClient();
   pgClient.connect();
 
   let distinctTickers = [];
@@ -109,30 +115,126 @@ async function getPositions(msg, discordUserId, bot) {
     msg.channel.send("```Something bad done happened :(```")
   }
 
+  let res;
   try {
-    let res = await pgClient.query('SELECT * FROM positions WHERE discorduserid = $1', [discordUserId]);
-    let tokenDataTable = ["```diff", "\n ticker | pos   | price"];
+    res = await pgClient.query('SELECT * FROM positions WHERE discorduserid = $1 ORDER BY opendatetime', [discordUserId]);
+  }
+  catch (err) {
+    msg.reply('```Sorry hun, there was a database error :(```');
+  }
+
+  let discordUserObj = await bot.users.fetch(discordUserId);
+
+  let buildPositionsTable = (pageNum) => {
+    let tokenDataTable = ["```diff", "\n  #|    ticker|pos  |          price"];
     let totalOpen = 0;
     let totalDiff = 0;
-    res.rows.forEach(row => {
-      tokenDataTable.push(`\n${utils.padString('       ', row.ticker, true)} | ${utils.padString('     ', row.position.toUpperCase(), false)} | o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.price).toFixed(2), true), false)} ${new Intl.DateTimeFormat().format(row.datetime)}`);
-      let tokenData = tokenDataLookup[row.ticker];
-      tokenDataTable.push(`\n        |       | c: $${utils.padString('          ', utils.padString('          ', tokenData.usd.toFixed(2), true), false)}`);
-      let priceDiff;
-      if (row.position.toUpperCase() === 'LONG') {
-        priceDiff = tokenData.usd - row.price;
+
+    const ITEMS_PER_PAGE = 5;
+    const upperPageLimit = pageNum * ITEMS_PER_PAGE + 1;
+
+    // i is the starting index to display
+    // If pageNum is 1, then i = 1
+    // If pageNum is 2, then i = 6, etc
+    let i = (pageNum - 1) * ITEMS_PER_PAGE;      
+    for (let j in res.rows) {       // j is the current row
+      if (i === upperPageLimit) {   // If i === the upper page limit, break; Upper page limit is 6 if pageNum is 1, 11 if pageNum is 2 etc
+        break;
+      }
+      if (j < i) {                  // If row < starting index then skip it
+        continue;
       }
       else {
-        priceDiff = row.price - tokenData.usd;
+        let row = res.rows[j];
+        let tokenData = tokenDataLookup[row.ticker];
+        let priceDiff;
+        if (row.position.toUpperCase() === 'LONG') {
+          priceDiff = tokenData.usd - row.price;
+        }
+        else {
+          priceDiff = row.price - tokenData.usd;
+        }
+
+        let priceDirection = priceDiff >= 0 ? '+' : '-';
+
+        tokenDataTable.push(`\n---|----------|-----|---------------`);
+        tokenDataTable.push(`\n${priceDirection}${utils.padString('  ', i, true)}|${utils.padString('          ', row.ticker, true)}|${utils.padString('     ', row.position.toUpperCase(), false)}|chg $${utils.padString('           ', utils.padString('          ', priceDiff.toFixed(2), true), false)}`);
+        tokenDataTable.push(`\n${priceDirection}  |${utils.padString('          ', dateformat(row.opendatetime, "yyyy-mm-dd"), true)}|     | o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.price).toFixed(2), true), false)}`);
+        tokenDataTable.push(`\n${priceDirection}  |          |     | c: $${utils.padString('          ', utils.padString('          ', tokenData.usd.toFixed(2), true), false)}`); // (${((priceDiff / row.price) * 100).toFixed(2)}%)`);
+        
+        totalOpen += parseFloat(row.price);
+        totalDiff += priceDiff;
+        i++;
       }
-      tokenDataTable.push(`\n${priceDiff >= 0 ? '+' : '-'}       |       |    $${utils.padString('           ', utils.padString('          ', priceDiff.toFixed(2), true), false)} (${((priceDiff / row.price) * 100).toFixed(2)}%)`);
-      totalOpen += parseFloat(row.price);
-      totalDiff += priceDiff;
-    });
-    tokenDataTable.push(`\n\n${totalDiff >= 0 ? '+' : '-'} Total PnL: $${totalDiff.toFixed(2)} (${((totalDiff / totalOpen) * 100).toFixed(2)}%)`);
+    }
+    let maxPage = Math.floor(res.rows.length/5) + ((res.rows.length % 5 == 0) ? 0 : 1);
+    // tokenDataTable.push(`\n\n${totalDiff >= 0 ? '+' : '-'} Total PnL: $${totalDiff.toFixed(2)} (${((totalDiff / totalOpen) * 100).toFixed(2)}%)`);
+    tokenDataTable.push(`\n\n${res.rows.length} open positions found. Displaying page ${pageNum} of ${maxPage}`);
     tokenDataTable.push("```");
-    let discordUserObj = await bot.users.fetch(discordUserId);
-    msg.reply('`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Portfolio`\n' + tokenDataTable.join(""));
+    return {
+      table: '`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Trading Positions`\n' + tokenDataTable.join(''),
+      maxPage: maxPage
+    }
+  }
+
+  let buildReactions = (pageNum, maxPage, sentEmbed) => {
+    if (pageNum == 1 && pageNum != maxPage) {
+      sentEmbed.react('▶');
+    }
+    else if (pageNum == maxPage) {
+      sentEmbed.react('◀');
+    }
+    else {
+      sentEmbed.react('◀')
+        .then(() => sentEmbed.react('▶'));
+    }
+
+    const filter = (reaction, user) => {
+      return user.id === msg.author.id && reaction.emoji.name === '▶' || reaction.emoji.name === '◀';
+    };
+    let collector = sentEmbed.createReactionCollector(filter, { time: 120000 });
+    collector.on('collect', (reaction, user) => {
+      if (user.id === msg.author.id) {
+        switch (reaction.emoji.name) {
+          case '▶':
+            pageNum++;
+            break;
+          case '◀':
+            pageNum--;
+            break;
+          default:
+        }
+        let positionsTable = buildPositionsTable(pageNum);
+        maxPage = positionsTable.maxPage;
+        sentEmbed.edit(positionsTable.table);
+        sentEmbed.reactions.removeAll().catch(error => console.error('Failed to clear reactions: ', error))
+        .then(() => {
+          if (pageNum == 1 && pageNum != maxPage) {
+            sentEmbed.react('▶');
+          }
+          else if (pageNum == maxPage) {
+            sentEmbed.react('◀');
+          }
+          else {
+            sentEmbed.react('◀')
+              .then(() => sentEmbed.react('▶'));
+          }
+        });
+      }
+    });
+    collector.on('end', collected => {
+      sentEmbed.reactions.removeAll().catch(error => console.error('Failed to clear reactions: ', error));
+    });
+  }
+
+  try {
+    let positionsTable = buildPositionsTable(pageNum);
+    let maxPage = positionsTable.maxPage;
+    msg.reply(positionsTable.table)
+      .then(sentEmbed => {
+        buildReactions(pageNum, maxPage, sentEmbed);
+      });
+
     pgClient.end();
   }
   catch (err) {
@@ -142,8 +244,15 @@ async function getPositions(msg, discordUserId, bot) {
   }
 }
 
+/**
+ * Open a position for a given user.
+ * @param {object} msg Used by the bot to reply back or send messages in the discord server
+ * @param {number} discordUserId Unique id for user in discord, used to pull back positions by user
+ * @param {string} position Either 'long' or 'short'
+ * @param {string} searchTerm The coin to open a position on, e.g. 'ETH' or 'ethereum'
+*/
 async function openPosition(msg, discordUserId, position, searchTerm) {
-  const pgClient = getPgClient();
+  const pgClient = dbCmds.getPgClient();
   pgClient.connect();
 
   let tokenData;
@@ -164,7 +273,7 @@ async function openPosition(msg, discordUserId, position, searchTerm) {
     return;
   }
 
-  pgClient.query('INSERT INTO positions(discorduserid, ticker, position, price, datetime) VALUES($1, $2, $3, $4, current_timestamp) RETURNING *',
+  pgClient.query('INSERT INTO positions(discorduserid, ticker, position, price, opendatetime) VALUES($1, $2, $3, $4, current_timestamp) RETURNING *',
     [discordUserId, tokenData.ticker, position, tokenData.usd],
     (err, res) => {
       if (err) {
@@ -176,16 +285,4 @@ async function openPosition(msg, discordUserId, position, searchTerm) {
       }
       pgClient.end();
     });
-}
-
-//-========== [ Helper Functions ] ==========-
-
-function getPgClient() {
-  return new pg.Client({
-    user: auth.pgConfig.user,
-    host: auth.pgConfig.host,
-    database: auth.pgConfig.database,
-    password: auth.pgConfig.password,
-    port: auth.pgConfig.port
-  });
 }
