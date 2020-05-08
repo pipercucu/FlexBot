@@ -18,7 +18,8 @@ function createTables() {
   discordUserId VARCHAR(255) NOT NULL,
   ticker VARCHAR(255) NOT NULL,
   position VARCHAR(255) NOT NULL,
-  price DECIMAL NOT NULL,
+  openprice DECIMAL NOT NULL,
+  closeprice DECIMAL,
   opendatetime TIMESTAMP NOT NULL,
   closedatetime TIMESTAMP
   );`;

@@ -155,20 +155,20 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         let tokenData = tokenDataLookup[row.ticker];
         let priceDiff;
         if (row.position.toUpperCase() === 'LONG') {
-          priceDiff = tokenData.usd - row.price;
+          priceDiff = tokenData.usd - row.openprice;
         }
         else {
-          priceDiff = row.price - tokenData.usd;
+          priceDiff = row.openprice - tokenData.usd;
         }
 
         let priceDirection = priceDiff >= 0 ? '+' : '-';
 
         tokenDataTable.push(`\n---|----------|-----|---------------`);
         tokenDataTable.push(`\n${priceDirection}${utils.padString('  ', i, true)}|${utils.padString('          ', row.ticker, true)}|${utils.padString('     ', row.position.toUpperCase(), false)}|chg $${utils.padString('           ', utils.padString('          ', priceDiff.toFixed(2), true), false)}`);
-        tokenDataTable.push(`\n${priceDirection}  |${utils.padString('          ', dateformat(row.opendatetime, "yyyy-mm-dd"), true)}|     | o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.price).toFixed(2), true), false)}`);
-        tokenDataTable.push(`\n${priceDirection}  |          |     | c: $${utils.padString('          ', utils.padString('          ', tokenData.usd.toFixed(2), true), false)}`); // (${((priceDiff / row.price) * 100).toFixed(2)}%)`);
+        tokenDataTable.push(`\n${priceDirection}  |${utils.padString('          ', dateformat(row.opendatetime, "yyyy-mm-dd"), true)}|     | o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.openprice).toFixed(2), true), false)}`);
+        tokenDataTable.push(`\n${priceDirection}  |          |     | c: $${utils.padString('          ', utils.padString('          ', tokenData.usd.toFixed(2), true), false)}`); // (${((priceDiff / row.openprice) * 100).toFixed(2)}%)`);
         
-        totalOpen += parseFloat(row.price);
+        totalOpen += parseFloat(row.openprice);
         totalDiff += priceDiff;
         i++;
       }
@@ -291,7 +291,7 @@ async function openPosition(msg, discordUserId, position, searchTerm) {
     return;
   }
 
-  pgClient.query('INSERT INTO positions(discorduserid, ticker, position, price, opendatetime) VALUES($1, $2, $3, $4, current_timestamp) RETURNING *',
+  pgClient.query('INSERT INTO positions(discorduserid, ticker, position, openprice, opendatetime) VALUES($1, $2, $3, $4, current_timestamp) RETURNING *',
     [discordUserId, tokenData.ticker, position, tokenData.usd],
     (err, res) => {
       if (err) {
