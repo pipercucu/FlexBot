@@ -23,8 +23,8 @@ const auth = require('./auth.json');
 const coinGeckoCmds = require('./coinGeckoCmds.js');
 const Discord = require('discord.js');
 const fs = require('fs');
-const pg = require('pg');
 const randomCmds = require('./randomCmds.js');
+const reactionsCmds = require('./reactionsCmds.js');
 const tradeCmds = require('./tradeCmds.js');
 const utils = require('./utils.js');
 
@@ -41,6 +41,8 @@ bot.on('ready', () => {
 
 // Handle incoming commands
 bot.on('message', async msg => {
+  reactionsCmds.react(msg);
+
   // Check if it's using our prefix, todo: make prefix configurable.
   if (msg.content.substring(0, 1) !== '!') return;
 
@@ -74,6 +76,7 @@ bot.on('message', async msg => {
 // h, help: display help dialog
 // p, price: takes tickers or coin names as arguments and then shows a table of prices
 // ping: says "pong"
+// r, random: methods for larkin around
 // t, trade: opens or views trading positions
 let botCmdMap = {
   'h': msg => {
@@ -82,14 +85,15 @@ let botCmdMap = {
   'help': msg => {
     const helpEmbed = {
       title: 'FlexBot Help',
+      description: 'FlexBot is a Discord bot for pulling cryptocurrency price data and logging trading positions. ♡ Made with love in Alabama, USA.',
       fields: [
         {
           name: 'Check Prices',
-          value: 'Use `!price <ticker1, ticker2, ...>` or `!p <ticker1, ticker2, ...>` to show a table of token prices.'
-            + '\n\ne.g.: `!p eth btc "enjin coin" xmr`'
+          value: '`!price <ticker1, ticker2, ...>`\n`!p <ticker1, ticker2, ...>`\nTo show a table of token prices.'
+            + '\ne.g.: `!p eth btc "enjin coin" xmr`'
         },
-        { name: 'Trading', value: 'Use `!trade` or `!t` to open a list of options for logging and seeing trades.' },
-        { name: 'Random', value: 'Use `!random` or `!r` for larkin around XD' }
+        { name: 'Trading', value: '`!trade`\n`!t`\nTo open a list of options for logging and seeing trades.' },
+        { name: 'Random', value: '`!random`\n`!r`\nFor larkin around.' }
       ]
     }
     msg.channel.send({ embed: helpEmbed });

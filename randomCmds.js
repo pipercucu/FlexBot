@@ -1,14 +1,6 @@
 'use strict'
-const auth = require('./auth.json');
-const fs = require('fs');
 const coinGeckoCmds = require('./coinGeckoCmds.js');
-const coinGeckoLookups = require('./common/coinGeckoLookups.json')
-const CoinGecko = require('coingecko-api');
-const pg = require('pg');
 const soupsList = require('./common/soupsList.json');
-const utils = require('./utils.js');
-
-const CoinGeckoClient = new CoinGecko();
 
 module.exports = {
   random: random
@@ -36,7 +28,7 @@ async function random(msg, args, bot) {
       let data = await coinGeckoCmds.getPrice(['ETH']);
       let tokenDataKeys = Object.keys(data.found);
       let tokenData = data.found[tokenDataKeys];
-      msg.channel.send('```' + `${tokenData.usd * 3000} stinkin dollars.` + '```');
+      msg.channel.send('```' + `Asphy woulda had ${tokenData.usd * 3000} stinkin dollars if he weren't liquidated.` + '```');
       break;
     case 'soup':
       msg.channel.send('```' + `${soupsList.length} soups.` + '```')
