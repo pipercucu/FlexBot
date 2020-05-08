@@ -89,11 +89,11 @@ let botCmdMap = {
       fields: [
         {
           name: 'Check Prices',
-          value: '`!price <ticker1, ticker2, ...>`\n`!p <ticker1, ticker2, ...>`\nTo show a table of token prices.'
+          value: 'To show a table of token prices, use:\n`!price <ticker1, ticker2, ...>`\n`!p <ticker1, ticker2, ...>`'
             + '\ne.g.: `!p eth btc "enjin coin" xmr`'
         },
-        { name: 'Trading', value: '`!trade`\n`!t`\nTo open a list of options for logging and seeing trades.' },
-        { name: 'Random', value: '`!random`\n`!r`\nFor larkin around.' }
+        { name: 'Trading', value: 'To open a list of options for logging and seeing trades, use:\n`!trade`\n`!t`' },
+        { name: 'Random', value: 'For larkin around:\n`!random`\n`!r`' }
       ]
     }
     msg.channel.send({ embed: helpEmbed });

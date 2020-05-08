@@ -15,9 +15,10 @@ async function trade(msg, args, bot) {
   const helpEmbed = {
     title: 'Trading Commands',
     fields: [
-      { name: 'Open Long', value: 'Use `!trade long <ticker>` or `!t l <ticker>` to open a long.' },
-      { name: 'Open Short', value: 'Use `!trade short <ticker>` or `!t s <ticker>` to open a short.' },
-      { name: 'Get Positions', value: 'Use `!trade positions` or `!t p` to see your positions.' },
+      { name: 'Open Long', value: 'To open a long, use:\n`!trade long <ticker>`\n`!t l <ticker>`' },
+      { name: 'Open Short', value: 'To open a short, use:\n`!trade short <ticker>`\n`!t s <ticker>`' },
+      { name: 'Close Position', value: 'To close a position, use:\n`!trade close <position number>`\n`!t c <position number>`\n`<position number>` comes from the `#` column in `!t p`.' },
+      { name: 'Get Positions', value: 'To see open positions, use:\n`!trade positions`\n`!t p`\nAn optional user @ can also be used if you want to view someone else\'s positions:\n`!t p @cucurbit`'}
     ]
   }
   
@@ -125,6 +126,11 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
 
   let discordUserObj = await bot.users.fetch(discordUserId);
 
+  /**
+   * Builds a page for the positions table.
+   * @param {number} pageNum Page number, should be 1 for the first call and then either increments or decrements depending on which way the user pages.
+   * @returns {Object} Object that contains the text for the table and the maxPage so buildReactions() knows which paging reactions to show
+  */
   let buildPositionsTable = (pageNum) => {
     let tokenDataTable = ["```diff", "\n  #|    ticker|pos  |          price"];
     let totalOpen = 0;
@@ -133,7 +139,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     const ITEMS_PER_PAGE = 5;
     const upperPageLimit = pageNum * ITEMS_PER_PAGE + 1;
 
-    // i is the starting index to display
+    // i is the starting index to display for positions
     // If pageNum is 1, then i = 1
     // If pageNum is 2, then i = 6, etc
     let i = (pageNum - 1) * ITEMS_PER_PAGE;      
@@ -177,6 +183,12 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     }
   }
 
+  /**
+   * Display reactions for paging, if applicable.
+   * @param {number} pageNum Page number, should be 1 for the first call and then either increments or decrements depending on which way the user pages.
+   * @param {number} maxPage Max page number as determined by the number of positions and number of positions per page. Used in conjunction with the current pageNum to decide which paging reactions to show.
+   * @param {Object} sentEmbed References the message that we should add our paging reactions to.
+  */
   let buildReactions = (pageNum, maxPage, sentEmbed) => {
     if (pageNum == 1 && pageNum != maxPage) {
       sentEmbed.react('▶');
@@ -189,11 +201,14 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         .then(() => sentEmbed.react('▶'));
     }
 
+    // Only detect when the message author reacts with either ◀ or ▶
     const filter = (reaction, user) => {
       return user.id === msg.author.id && reaction.emoji.name === '▶' || reaction.emoji.name === '◀';
     };
+    // Create a listener for reaction events using the filter. It goes to Heaven after 2 minutes.
     let collector = sentEmbed.createReactionCollector(filter, { time: 120000 });
     collector.on('collect', (reaction, user) => {
+      // If a valid reaction is detected, figure out which kind it were and decrement or increment pageNum as necessary.
       if (user.id === msg.author.id) {
         switch (reaction.emoji.name) {
           case '▶':
@@ -204,18 +219,20 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
             break;
           default:
         }
+        // Rebuild the positions table page with the new pageNum.
         let positionsTable = buildPositionsTable(pageNum);
         maxPage = positionsTable.maxPage;
         sentEmbed.edit(positionsTable.table);
+        // Clear out the paging reactions if they exist
         sentEmbed.reactions.removeAll().catch(error => console.error('Failed to clear reactions: ', error))
         .then(() => {
-          if (pageNum == 1 && pageNum != maxPage) {
+          if (pageNum == 1 && pageNum != maxPage) { // If it's the first page, there're more pages, then only show 'Next Page' reaction.
             sentEmbed.react('▶');
           }
-          else if (pageNum == maxPage) {
+          else if (pageNum == maxPage) {            // If it's the last page, then only show the 'Previous Page' button.
             sentEmbed.react('◀');
           }
-          else {
+          else {                                    // If it ain't the first or last page, show both buttons.
             sentEmbed.react('◀')
               .then(() => sentEmbed.react('▶'));
           }
@@ -227,6 +244,8 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     });
   }
 
+  // First call to build the positions table.
+  // After this it's called recursively if the user changes pages.
   try {
     let positionsTable = buildPositionsTable(pageNum);
     let maxPage = positionsTable.maxPage;
@@ -234,7 +253,6 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
       .then(sentEmbed => {
         buildReactions(pageNum, maxPage, sentEmbed);
       });
-
     pgClient.end();
   }
   catch (err) {
