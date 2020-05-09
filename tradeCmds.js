@@ -116,11 +116,29 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     msg.channel.send("```Something bad done happened :(```")
   }
 
+  // Store all the calculated information like price difference and price direction in a summary object so it doesn't
+  // need to be re-calculated each time you turn the page in the table.
   let res;
+  let positionsSummary = {
+    rows: []
+  };
   try {
     res = await pgClient.query('SELECT * FROM positions WHERE discorduserid = $1 ORDER BY opendatetime', [discordUserId]);
+    positionsSummary.rows = res.rows;
+    for (let row of positionsSummary.rows) {
+      let tokenData = tokenDataLookup[row.ticker];
+      row.currPrice = tokenData.usd;
+      if (row.position.toUpperCase() === 'LONG') {
+        row.priceDiff = row.currPrice - row.openprice;
+      }
+      else {
+        row.priceDiff = row.openprice - row.currPrice;
+      }
+      row.priceDirection = row.priceDiff >= 0 ? '+' : '-';
+    }
   }
   catch (err) {
+    console.log(err);
     msg.reply('```Sorry hun, there was a database error :(```');
   }
 
@@ -132,7 +150,8 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
    * @returns {Object} Object that contains the text for the table and the maxPage so buildReactions() knows which paging reactions to show
   */
   let buildPositionsTable = (pageNum) => {
-    let tokenDataTable = ["```diff", "\n  #|    ticker|pos  |          price"];
+    const HORIZONTAL_DIVIDER = ' ';
+    let tokenDataTable = ["```diff", `\n  #${HORIZONTAL_DIVIDER}    ticker${HORIZONTAL_DIVIDER}pos  ${HORIZONTAL_DIVIDER}          price`];
     let totalOpen = 0;
     let totalDiff = 0;
 
@@ -142,8 +161,8 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     // i is the starting index to display for positions
     // If pageNum is 1, then i = 1
     // If pageNum is 2, then i = 6, etc
-    let i = (pageNum - 1) * ITEMS_PER_PAGE;      
-    for (let j in res.rows) {       // j is the current row
+    let i = (pageNum - 1) * ITEMS_PER_PAGE;
+    for (let j in positionsSummary.rows) {       // j is the current row
       if (i === upperPageLimit) {   // If i === the upper page limit, break; Upper page limit is 6 if pageNum is 1, 11 if pageNum is 2 etc
         break;
       }
@@ -151,31 +170,22 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         continue;
       }
       else {
-        let row = res.rows[j];
-        let tokenData = tokenDataLookup[row.ticker];
-        let priceDiff;
-        if (row.position.toUpperCase() === 'LONG') {
-          priceDiff = tokenData.usd - row.openprice;
-        }
-        else {
-          priceDiff = row.openprice - tokenData.usd;
-        }
+        let row = positionsSummary.rows[j];
 
-        let priceDirection = priceDiff >= 0 ? '+' : '-';
-
-        tokenDataTable.push(`\n---|----------|-----|---------------`);
-        tokenDataTable.push(`\n${priceDirection}${utils.padString('  ', i, true)}|${utils.padString('          ', row.ticker, true)}|${utils.padString('     ', row.position.toUpperCase(), false)}|chg $${utils.padString('           ', utils.padString('          ', priceDiff.toFixed(2), true), false)}`);
-        tokenDataTable.push(`\n${priceDirection}  |${utils.padString('          ', dateformat(row.opendatetime, "yyyy-mm-dd"), true)}|     | o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.openprice).toFixed(2), true), false)}`);
-        tokenDataTable.push(`\n${priceDirection}  |          |     | c: $${utils.padString('          ', utils.padString('          ', tokenData.usd.toFixed(2), true), false)}`); // (${((priceDiff / row.openprice) * 100).toFixed(2)}%)`);
+        tokenDataTable.push(`\n---${HORIZONTAL_DIVIDER}----------${HORIZONTAL_DIVIDER}-----${HORIZONTAL_DIVIDER}---------------`);
+        tokenDataTable.push(`\n${row.priceDirection}${utils.padString('  ', i, true)}${HORIZONTAL_DIVIDER}${utils.padString('          ', row.ticker, true)}${HORIZONTAL_DIVIDER}${utils.padString('     ', row.position.toUpperCase(), false)}${HORIZONTAL_DIVIDER}chg $${utils.padString('           ', utils.padString('          ', row.priceDiff.toFixed(2), true), false)}`);
+        tokenDataTable.push(`\n${row.priceDirection}  ${HORIZONTAL_DIVIDER}${utils.padString('          ', dateformat(row.opendatetime, "yyyy-mm-dd"), true)}${HORIZONTAL_DIVIDER}     ${HORIZONTAL_DIVIDER} o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.openprice).toFixed(2), true), false)}`);
+        tokenDataTable.push(`\n${row.priceDirection}  ${HORIZONTAL_DIVIDER}          ${HORIZONTAL_DIVIDER}     ${HORIZONTAL_DIVIDER} c: $${utils.padString('          ', utils.padString('          ', row.currPrice.toFixed(2), true), false)}`); // (${((priceDiff / row.openprice) * 100).toFixed(2)}%)`);
         
-        totalOpen += parseFloat(row.openprice);
-        totalDiff += priceDiff;
+        // totalOpen += parseFloat(row.openprice);
+        // totalDiff += priceDiff;
         i++;
       }
     }
     let maxPage = Math.floor(res.rows.length/5) + ((res.rows.length % 5 == 0) ? 0 : 1);
     // tokenDataTable.push(`\n\n${totalDiff >= 0 ? '+' : '-'} Total PnL: $${totalDiff.toFixed(2)} (${((totalDiff / totalOpen) * 100).toFixed(2)}%)`);
-    tokenDataTable.push(`\n\n${res.rows.length} open positions\nPage ${pageNum} of ${maxPage}`);
+    // tokenDataTable.push(`\n\n${res.rows.length} open positions\nPage ${pageNum} of ${maxPage}`);
+    tokenDataTable.push(`\n\n${utils.padString('                         ', 'Page ' + pageNum + ' of ' + maxPage, true)}`);
     tokenDataTable.push("```");
     return {
       table: '`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Trading Positions`\n' + tokenDataTable.join(''),

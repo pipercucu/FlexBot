@@ -110,13 +110,15 @@ let botCmdMap = {
       args = ['BTC'];
     }
 
+    const HORIZONTAL_DIVIDER = ' ';
+
     try {
-      let tokenDataArr = ["```diff", "\n   ticker | price        | 24hr % chg"];
+      let tokenDataArr = ["```diff", `\n   ticker ${HORIZONTAL_DIVIDER} price        ${HORIZONTAL_DIVIDER} 24hr % chg`];
       let data = await coinGeckoCmds.getPrice(args);
       let foundTokenKeys = Object.keys(data.found);
       foundTokenKeys.forEach(key => {
         let tokenData = data.found[key];
-        tokenDataArr.push(`\n${tokenData.usd_24h_change >= 0 ? '+' : '-'} ${utils.padString('       ', key, true)} | $${utils.padString('           ', tokenData.usd, false)} | ${Math.ceil(tokenData.usd_24h_change * 100) / 100}`);
+        tokenDataArr.push(`\n${tokenData.usd_24h_change >= 0 ? '+' : '-'} ${utils.padString('       ', key, true)} ${HORIZONTAL_DIVIDER} $${utils.padString('           ', tokenData.usd, false)} ${HORIZONTAL_DIVIDER} ${Math.ceil(tokenData.usd_24h_change * 100) / 100}`);
       });
       tokenDataArr.push("```");
       if (tokenDataArr.length > 3) {
