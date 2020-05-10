@@ -11,8 +11,8 @@ async function random(msg, args, bot) {
   const helpEmbed = {
     title: 'Random Commands',
     fields: [
-      { name: 'Asphy', value: 'Use `!random asphy` or `!r asphy` to see how much asphy\'s stack would\'ve been worth if he weren\'t liquidated.' },
-      { name: 'Soups', value: 'Use `!random soup` or `!r soup` and soup for you.' }
+      { name: 'Asphy', value: 'To see how much asphy\'s stack would\'ve been worth if he weren\'t liquidated, use: ```!random asphy\n!r asphy```' },
+      { name: 'Soups', value: 'Soup for you: ```!random soup\n!r soup```' }
     ]
   }
   

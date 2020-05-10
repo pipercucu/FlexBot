@@ -15,10 +15,10 @@ async function trade(msg, args, bot) {
   const helpEmbed = {
     title: 'Trading Commands',
     fields: [
-      { name: 'Open Long', value: 'To open a long, use:\n`!trade long <ticker>`\n`!t l <ticker>`' },
-      { name: 'Open Short', value: 'To open a short, use:\n`!trade short <ticker>`\n`!t s <ticker>`' },
-      { name: 'Close Position', value: 'To close a position, use:\n`!trade close <position number>`\n`!t c <position number>`\n`<position number>` comes from the `#` column in `!t p`.' },
-      { name: 'Get Positions', value: 'To see open positions, use:\n`!trade positions`\n`!t p`\nAn optional user @ can also be used if you want to view someone else\'s positions:\n`!t p @cucurbit`'}
+      { name: 'Open Long', value: 'To open a long, use:\n```!trade long <ticker>\n!t l <ticker>```' },
+      { name: 'Open Short', value: 'To open a short, use:\n```!trade short <ticker>\n!t s <ticker>```' },
+      { name: 'Close Position', value: 'To close a position, use:\n```!trade close <position number>\n!t c <position number>```\n`<position number>` comes from the `#` column in `!t p`.' },
+      { name: 'Get Positions', value: 'To see open positions, use:\n```!trade positions\n!t p```\nAn optional user @ can also be used if you want to view someone else\'s positions:\n`!t p @cucurbit`'}
     ]
   }
   
@@ -201,19 +201,27 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
   */
   let buildReactions = (pageNum, maxPage, sentEmbed) => {
     if (pageNum == 1 && pageNum != maxPage) {
-      sentEmbed.react('▶');
+      sentEmbed.react('▶')
+        .then(() => sentEmbed.react('⏩'));
     }
     else if (pageNum == maxPage) {
-      sentEmbed.react('◀');
+      sentEmbed.react('⏪')
+        .then(() => sentEmbed.react('◀'));
     }
     else {
-      sentEmbed.react('◀')
-        .then(() => sentEmbed.react('▶'));
+      sentEmbed.react('⏪')
+        .then(() => sentEmbed.react('◀'))
+        .then(() => sentEmbed.react('▶'))
+        .then(() => sentEmbed.react('⏩'));
     }
 
     // Only detect when the message author reacts with either ◀ or ▶
     const filter = (reaction, user) => {
-      return user.id === msg.author.id && reaction.emoji.name === '▶' || reaction.emoji.name === '◀';
+      return user.id === msg.author.id &&
+        reaction.emoji.name === '▶' ||
+        reaction.emoji.name === '⏩' ||
+        reaction.emoji.name === '◀' ||
+        reaction.emoji.name === '⏪';
     };
     // Create a listener for reaction events using the filter. It goes to Heaven after 2 minutes.
     let collector = sentEmbed.createReactionCollector(filter, { time: 120000 });
@@ -224,8 +232,14 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
           case '▶':
             pageNum++;
             break;
+          case '⏩':
+            pageNum = maxPage;
+            break;
           case '◀':
             pageNum--;
+            break;
+          case '⏪':
+            pageNum = 1;
             break;
           default:
         }
@@ -237,14 +251,18 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         sentEmbed.reactions.removeAll().catch(error => console.error('Failed to clear reactions: ', error))
         .then(() => {
           if (pageNum == 1 && pageNum != maxPage) { // If it's the first page, there're more pages, then only show 'Next Page' reaction.
-            sentEmbed.react('▶');
+            sentEmbed.react('▶')
+              .then(() => sentEmbed.react('⏩'));
           }
           else if (pageNum == maxPage) {            // If it's the last page, then only show the 'Previous Page' button.
-            sentEmbed.react('◀');
+            sentEmbed.react('⏪')
+              .then(() => sentEmbed.react('◀'));
           }
           else {                                    // If it ain't the first or last page, show both buttons.
-            sentEmbed.react('◀')
-              .then(() => sentEmbed.react('▶'));
+            sentEmbed.react('⏪')
+              .then(() => sentEmbed.react('◀'))
+              .then(() => sentEmbed.react('▶'))
+              .then(() => sentEmbed.react('⏩'));
           }
         });
       }
