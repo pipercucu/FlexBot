@@ -34,11 +34,11 @@ async function random(msg, args, bot) {
       msg.channel.send('```' + `${soupsList.length} soups.` + '```')
       const randomSoup = soupsList[Math.floor(Math.random() * soupsList.length)];
       const soupEmbed = {
-        title: randomSoup.name,
+        title: randomSoup.name || 'N/A',
         fields: [
-          { name: 'Origin', value: randomSoup.origin },
-          { name: 'Type', value: randomSoup.type },
-          { name: 'Description', value: randomSoup.description }
+          { name: 'Origin', value: randomSoup.origin || 'N/A' },
+          { name: 'Type', value: randomSoup.type || 'N/A' },
+          { name: 'Description', value: randomSoup.description || 'N/A' }
         ]
       }
       msg.channel.send({ embed: soupEmbed });
