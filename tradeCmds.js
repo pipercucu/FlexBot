@@ -103,6 +103,10 @@ async function closePosition(msg, posId) {
     position = positions.find(e => e.posId == posId)
   }
   if (position) {
+    if (position.closed === true) {
+      msg.reply('```' + `That position was already closed. Run '!t p' to see your open positions and regenerate ids for closing.` + '```');
+      return;
+    }
     const pgClient = dbCmds.getPgClient();
     pgClient.connect();
 
@@ -125,6 +129,7 @@ async function closePosition(msg, posId) {
         msg.reply('```Sorry hun, there was a database error :(```');
       }
       else {
+        position.closed = true;
         msg.reply('```diff' + `\nClosing ${position.ticker} ${position.position.toUpperCase()} at $${currPrice.toFixed(2)}\nOpened ${dateformat(position.opendatetime, "yyyy-mm-dd")} at $${position.openprice.toFixed(2)}\n${priceDiff >= 0 ? '+' : '-'} Realized PnL: $${priceDiff.toFixed(2)} (${(priceDiff / position.openprice * 100).toFixed(2)}%)` + '```');
       }
       pgClient.end();
@@ -189,7 +194,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         row.currPrice = parseFloat(row.closeprice);
       }
       else {
-        row.posId = openIndex++;    // This posId is only used for closing positions, so we only assign it if there ain't a close date
+        row.posId = ++openIndex;    // This posId is only used for closing positions, so we only assign it if there ain't a close date
         let tokenData = tokenDataLookup[row.ticker];
         row.currPrice = tokenData.usd;
       }
