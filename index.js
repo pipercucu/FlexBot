@@ -66,6 +66,9 @@ bot.on('message', async msg => {
     args[i] = args[i].split('|||||').join(' ').split('"').join("");
   }
 
+  // Log the name and id of the request maker and their arguments
+  console.log(`${msg.author.username}#${msg.author.discriminator} id:${msg.author.id} `, args);
+
   // The command is the first argument. See if the command is mapped and then run it.
   let cmd = args[0];
   let botCmd = botCmdMap[cmd];

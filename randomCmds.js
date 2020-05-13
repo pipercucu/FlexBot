@@ -28,7 +28,7 @@ async function random(msg, args, bot) {
       let data = await coinGeckoCmds.getPrice(['ETH']);
       let tokenDataKeys = Object.keys(data.found);
       let tokenData = data.found[tokenDataKeys];
-      msg.channel.send('```' + `Asphy woulda had ${tokenData.usd * 3000} stinkin dollars if he weren't liquidated.` + '```');
+      msg.channel.send('```' + `Asphy woulda had ${tokenData.usd * 4800} stinkin dollars if he weren't liquidated.` + '```');
       break;
     case 'soup':
       msg.channel.send('```' + `${soupsList.length} soups.` + '```')
