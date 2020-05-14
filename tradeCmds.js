@@ -179,12 +179,12 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
   const OPEN_POSITIONS = 'opened';
   const CLOSED_POSITIONS = 'closed';
   let res;
-  let positionsSummary = {  // Object for to store positions
-    openRows: [],           // Open positions
-    closedRows: [],         // Closed positions
+  let positionsSummary = {          // Object for to store positions
+    openRows: [],                   // Open positions
+    closedRows: [],                 // Closed positions
     openMaxPage: 0,
     closedMaxPage: 0,
-    openSummary: {
+    openSummary: {                  // Summaries that tally total invested, total current value or value at time of close, and total PnL.
       totalInvested: 0,
       totalValue: 0,
       pnl: 0
@@ -194,7 +194,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
       totalValue: 0,
       pnl: 0
     },
-    positionsType: OPEN_POSITIONS
+    positionsType: OPEN_POSITIONS   // Keeps track of if the user is lookin at open or closed positions
   };
   try {
     res = await pgClient.query('SELECT * FROM positions WHERE discorduserid = $1 ORDER BY opendatetime', [discordUserId]);
@@ -224,14 +224,14 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     positionsSummary.closedRows = res.rows.filter(row => row.closedatetime !== null);
     positionsSummary.openMaxPage = Math.floor(positionsSummary.openRows.length/ITEMS_PER_PAGE) + ((positionsSummary.openRows.length % ITEMS_PER_PAGE == 0) ? 0 : 1);
     positionsSummary.closedMaxPage = Math.floor(positionsSummary.closedRows.length/ITEMS_PER_PAGE) + ((positionsSummary.closedRows.length % ITEMS_PER_PAGE == 0) ? 0 : 1);
-    if (positionsSummary.openRows.length > 0) {
+    if (positionsSummary.openRows.length > 0) {     // If there're open positions, create the summary totals.
       positionsSummary.openSummary = {
         totalInvested: positionsSummary.openRows.map(row => row.openprice).reduce((prev, next) => prev + next),
         totalValue: positionsSummary.openRows.map(row => row.currPrice).reduce((prev, next) => prev + next),
         pnl: positionsSummary.openRows.map(row => row.priceDiff).reduce((prev, next) => prev + next)
       };
     }
-    if (positionsSummary.closedRows.length > 0) {
+    if (positionsSummary.closedRows.length > 0) {   // Same for closed positions.
       positionsSummary.closedSummary = {
         totalInvested: positionsSummary.closedRows.map(row => row.openprice).reduce((prev, next) => prev + next),
         totalValue: positionsSummary.closedRows.map(row => row.currPrice).reduce((prev, next) => prev + next),
