@@ -129,7 +129,7 @@ async function closePosition(msg, posId) {
         msg.reply('```Sorry hun, there was a database error :(```');
       }
       else {
-        position.closed = true;
+        position.closed = true;   // Mark position as closed in the cache so it ain't able to be closed over and over.
         msg.reply('```diff' + `\nClosing ${position.ticker} ${position.position.toUpperCase()} at $${currPrice.toFixed(2)}\nOpened ${dateformat(position.opendatetime, "yyyy-mm-dd")} at $${position.openprice.toFixed(2)}\n${priceDiff >= 0 ? '+' : '-'} Realized PnL: $${priceDiff.toFixed(2)} (${(priceDiff / position.openprice * 100).toFixed(2)}%)` + '```');
       }
       pgClient.end();
@@ -184,14 +184,26 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     closedRows: [],         // Closed positions
     openMaxPage: 0,
     closedMaxPage: 0,
+    openSummary: {
+      totalInvested: 0,
+      totalValue: 0,
+      pnl: 0
+    },
+    closedSummary: {
+      totalInvested: 0,
+      totalValue: 0,
+      pnl: 0
+    },
     positionsType: OPEN_POSITIONS
   };
   try {
     res = await pgClient.query('SELECT * FROM positions WHERE discorduserid = $1 ORDER BY opendatetime', [discordUserId]);
     let openIndex = 0;              // Counter that we increment to give id's to open positions in order to reference for closing later
     res.rows.forEach(row => {
+      row.openprice = parseFloat(row.openprice);
+      row.closeprice = parseFloat(row.closeprice);
       if (row.closedatetime) {
-        row.currPrice = parseFloat(row.closeprice);
+        row.currPrice = row.closeprice;
       }
       else {
         row.posId = ++openIndex;    // This posId is only used for closing positions, so we only assign it if there ain't a close date
@@ -212,6 +224,20 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     positionsSummary.closedRows = res.rows.filter(row => row.closedatetime !== null);
     positionsSummary.openMaxPage = Math.floor(positionsSummary.openRows.length/ITEMS_PER_PAGE) + ((positionsSummary.openRows.length % ITEMS_PER_PAGE == 0) ? 0 : 1);
     positionsSummary.closedMaxPage = Math.floor(positionsSummary.closedRows.length/ITEMS_PER_PAGE) + ((positionsSummary.closedRows.length % ITEMS_PER_PAGE == 0) ? 0 : 1);
+    if (positionsSummary.openRows.length > 0) {
+      positionsSummary.openSummary = {
+        totalInvested: positionsSummary.openRows.map(row => row.openprice).reduce((prev, next) => prev + next),
+        totalValue: positionsSummary.openRows.map(row => row.currPrice).reduce((prev, next) => prev + next),
+        pnl: positionsSummary.openRows.map(row => row.priceDiff).reduce((prev, next) => prev + next)
+      };
+    }
+    if (positionsSummary.closedRows.length > 0) {
+      positionsSummary.closedSummary = {
+        totalInvested: positionsSummary.closedRows.map(row => row.openprice).reduce((prev, next) => prev + next),
+        totalValue: positionsSummary.closedRows.map(row => row.currPrice).reduce((prev, next) => prev + next),
+        pnl: positionsSummary.closedRows.map(row => row.priceDiff).reduce((prev, next) => prev + next)
+      }
+    }
     positionsCache[discordUserId] = positionsSummary.openRows;
   }
   catch (err) {
@@ -228,18 +254,27 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
   */
   let buildPositionsTable = (pageNum) => {
     const HORIZONTAL_DIVIDER = ' ';
-    let tokenDataTable = ["```diff", `\n  #${HORIZONTAL_DIVIDER}    ticker${HORIZONTAL_DIVIDER}pos  ${HORIZONTAL_DIVIDER}          price`];
+    let tokenDataTable = ['```diff', `\n  #${HORIZONTAL_DIVIDER}    ticker${HORIZONTAL_DIVIDER}pos  ${HORIZONTAL_DIVIDER}          price`];
 
-    const upperPageLimit = pageNum * ITEMS_PER_PAGE + 1;
+    const upperPageLimit = pageNum * ITEMS_PER_PAGE;
     let maxPage = 0;
     let rowType = 'openRows';
+    let summaryType = 'openSummary';
+    let pnlType = 'Unrealized';
     if (positionsSummary.positionsType === OPEN_POSITIONS) {
       maxPage = positionsSummary.openMaxPage;
     }
     else {
       maxPage = positionsSummary.closedMaxPage;
       rowType = 'closedRows';
+      summaryType = 'closedSummary';
+      pnlType = 'Realized';
     }
+
+    let summary = '```js' + `\n${utils.padString('               ', utils.toTitleCase(positionsSummary.positionsType) + ' Invested', true)}: $${positionsSummary[summaryType].totalInvested.toFixed(2)}`
+      + `\n${utils.padString('               ', utils.toTitleCase(positionsSummary.positionsType) + ' Value', true)}: $${positionsSummary[summaryType].totalValue.toFixed(2)}`
+      + `\n${utils.padString('               ', pnlType + ' PnL', true)}: $${positionsSummary[summaryType].pnl.toFixed(2)} (${(positionsSummary[summaryType].pnl/positionsSummary[summaryType].totalInvested*100).toFixed(2)}%)`
+      + '```';
 
     // i is the starting index to display for positions
     // If pageNum is 1, then i = 1
@@ -269,9 +304,9 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     }
     let positionTypeText = positionsSummary.positionsType === OPEN_POSITIONS ? '📖 Open Positions' : '📕 Closed Positions';
     tokenDataTable.push(`\n\n${utils.padString('                    ', positionTypeText, false)}${utils.padString('                ', 'Page ' + pageNum + '/' + maxPage, true)}`);
-    tokenDataTable.push("```");
+    tokenDataTable.push('```');
     return {
-      table: '`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Trading Positions`\n' + tokenDataTable.join(''),
+      table: '`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Trading Positions`\n' + summary + tokenDataTable.join(''),
       maxPage: maxPage
     }
   }
@@ -292,17 +327,17 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     }
     
     positionTypeReactPromise.then(() => {
-      if (pageNum == 1) {                       // If it's the first page, 
-        if (pageNum != maxPage) {               // and there're more pages, then only show 'Next Page' reactions.
+      if (pageNum == 1) {                         // If it's the first page, 
+        if (pageNum != maxPage && maxPage != 0) { // and there're more pages, then only show 'Next Page' reactions.
           sentEmbed.react('▶')
             .then(() => sentEmbed.react('⏩'));
         }
       }
-      else if (pageNum == maxPage) {            // If it's the last page, then only show the 'Previous Page' reactions.
+      else if (pageNum == maxPage) {              // If it's the last page, then only show the 'Previous Page' reactions.
         sentEmbed.react('⏪')
           .then(() => sentEmbed.react('◀'));
       }
-      else {                                    // If it ain't the first or last page, show both typa reactions.
+      else {                                      // If it ain't the first or last page, show both typa reactions.
         sentEmbed.react('⏪')
           .then(() => sentEmbed.react('◀'))
           .then(() => sentEmbed.react('▶'))
