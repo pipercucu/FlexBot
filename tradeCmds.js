@@ -120,6 +120,9 @@ async function closePosition(msg, posId) {
     }
     position.openprice = parseFloat(position.openprice);
     let priceDiff = currPrice - position.openprice;
+    if (position.position.toUpperCase() === 'SHORT') {
+      priceDiff = position.openprice - currPrice;
+    }
 
     pgClient.query('UPDATE positions SET closeprice = $1, closedatetime = current_timestamp WHERE id = $2',
     [currPrice, position.id],

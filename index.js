@@ -21,6 +21,7 @@
 
 const auth = require('./auth.json');
 const coinGeckoCmds = require('./coinGeckoCmds.js');
+const competitionCmds = require('./competitionCmds.js');
 const Discord = require('discord.js');
 const fs = require('fs');
 const randomCmds = require('./randomCmds.js');
@@ -76,12 +77,19 @@ bot.on('message', async msg => {
 });
 
 // Map of all the bot commands, in alphabetical order
+// comp, competition
 // h, help: display help dialog
 // p, price: takes tickers or coin names as arguments and then shows a table of prices
 // ping: says "pong"
 // r, random: methods for larkin around
 // t, trade: opens or views trading positions
 let botCmdMap = {
+  'comp': msg => {
+
+  },
+  'competition': msg => {
+
+  },
   'h': msg => {
     botCmdMap['help'](msg);
   },
