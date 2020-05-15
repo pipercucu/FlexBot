@@ -230,14 +230,28 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     if (positionsSummary.openRows.length > 0) {     // If there're open positions, create the summary totals.
       positionsSummary.openSummary = {
         totalInvested: positionsSummary.openRows.map(row => row.openprice).reduce((prev, next) => prev + next),
-        totalValue: positionsSummary.openRows.map(row => row.currPrice).reduce((prev, next) => prev + next),
+        totalValue: positionsSummary.openRows.map(row => {
+          if (row.position.toUpperCase() === 'LONG') {
+            return row.openprice;
+          }
+          else {
+            return row.openprice + row.priceDiff;
+          }
+        }).reduce((prev, next) => prev + next),
         pnl: positionsSummary.openRows.map(row => row.priceDiff).reduce((prev, next) => prev + next)
       };
     }
     if (positionsSummary.closedRows.length > 0) {   // Same for closed positions.
       positionsSummary.closedSummary = {
         totalInvested: positionsSummary.closedRows.map(row => row.openprice).reduce((prev, next) => prev + next),
-        totalValue: positionsSummary.closedRows.map(row => row.currPrice).reduce((prev, next) => prev + next),
+        totalValue: positionsSummary.closedRows.map(row => {
+          if (row.position.toUpperCase() === 'LONG') {
+            return row.openprice;
+          }
+          else {
+            return row.openprice + row.priceDiff;
+          }
+        }).reduce((prev, next) => prev + next),
         pnl: positionsSummary.closedRows.map(row => row.priceDiff).reduce((prev, next) => prev + next)
       }
     }
