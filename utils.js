@@ -3,7 +3,9 @@
 module.exports = {
   padString: padString,
   parseDiscordUserId: parseDiscordUserId,
-  toTitleCase: toTitleCase
+  replaceDiscordMentionIdsWithNames: replaceDiscordMentionIdsWithNames,
+  toTitleCase: toTitleCase,
+  truncateStr: truncateStr
 }
 
 /**
@@ -43,6 +45,13 @@ function parseDiscordUserId(str) {
   }
 }
 
+function replaceDiscordMentionIdsWithNames(str, mentionsUsers) {
+  for (let [userId, userObj] of mentionsUsers) {
+    str = str.split('<@' + userId + '>').join('@' + userObj.username).split('<@!' + userId + '>').join('@' + userObj.username);
+  }
+  return str;
+}
+
 /**
  * Change a string to proper case, e.g. 'heya there' becomes 'Heya There'
  * @param {string} str String to check
@@ -55,4 +64,13 @@ function toTitleCase(str) {
         return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
     }
   );
+}
+
+function truncateStr(str, num) {
+  if (str.length > num) {
+    return str.slice(0, num) + '...';
+  }
+  else {
+    return str;
+  }
 }

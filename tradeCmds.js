@@ -8,11 +8,15 @@ module.exports = {
   trade: trade
 }
 
+const SELF = 'S';
+const OTHER = 'O';
+const SELF_AND_OTHER = 'SO';
+
 let positionsCache = {};
 
 async function trade(msg, args, bot) {
   const discordUserId = msg.author.id;
-  const helpEmbed = {
+  const helpEmbedTrading = {
     title: 'Trading Commands',
     fields: [
       { name: 'Open Long', value: 'To open a long, use:\n```!trade long <ticker>\n!t l <ticker>```' },
@@ -21,52 +25,56 @@ async function trade(msg, args, bot) {
       { name: 'Get Positions', value: 'To see open positions, use:\n```!trade positions\n!t p```\nAn optional user @ can also be used if you want to view someone else\'s positions:\n`!t p @cucurbit`'}
     ]
   }
+
+  let reportedBy = SELF;
+  switch (args[0]) {
+    case 'rp':
+    case 'report':
+      reportedBy = OTHER;
+      break;
+  }
   
   if (args.length === 1) {
-    msg.reply({ embed: helpEmbed });
+    switch (reportedBy) {
+      case OTHER:
+        msg.reply('```' + `We're workin on it!` + '```');
+        break;
+      case SELF:
+      default:
+        msg.reply({ embed: helpEmbedTrading });
+    }
     return;
   }
 
   const cmd = args[1].toLowerCase();
+  let posType = 'long';
 
   switch (cmd) {
-    case 'c':
-    case 'close':
-      if (args.length < 3) {
-        msg.reply({
-          embed: {
-            fields: [ { value: 'Requires a position # to close. e.g.: `!t l 3`. Run `!t p` to see your open positions and the position #\'s' } ]
-          }
-        });
-      }
-      else {
-        closePosition(msg, args[2]);
-      }
-      break;
     case 'l':
     case 'long':
-      if (args.length < 3) {
-        msg.reply({
-          embed: {
-            fields: [ { value: 'Requires a <ticker> to long. e.g.: `!t l eth`' } ]
-          }
-        });
+      if (cmd === 'l' || cmd === 'long') {
+        posType = 'long';
       }
-      else {
-        openPosition(msg, discordUserId, 'long', args[2]);
-      }
-      break;
     case 's':
     case 'short':
-      if (args.length < 3) {
+      if (cmd === 's' || cmd === 'short') {
+        posType = 'short';
+      }
+      if (args.length < 3
+        || (reportedBy === OTHER && args.length < 4)) {
         msg.reply({
           embed: {
-            fields: [ { value: 'Requires a <ticker> to short. e.g.: `!t s eth`' } ]
+            fields: [ { value: `Requires a <ticker>${reportedBy === OTHER ? ' and a <@username>' : ''} e.g.: ` + '`' + `!${args[0]} ${cmd} eth${reportedBy === OTHER ? ' @cucurbit' : ''}` + '`' } ]
           }
         });
       }
       else {
-        openPosition(msg, discordUserId, 'short', args[2]);
+        if (reportedBy === OTHER) {
+          requestReportProof(msg);
+        }
+        else {
+          openPosition(msg, discordUserId, posType, args[2]);
+        }
       }
       break;
     case 'p':
@@ -85,8 +93,23 @@ async function trade(msg, args, bot) {
       }
       getPositions(msg, posDiscordUserId, pageNum, bot);
       break;
+    case 'c':
+    case 'close':
+      if (reportedBy === SELF) {
+        if (args.length < 3) {
+          msg.reply({
+            embed: {
+              fields: [ { value: 'Requires a position # to close. e.g.: `!t l 3`. Run `!t p` to see your open positions and the position #\'s' } ]
+            }
+          });
+        }
+        else {
+          closePosition(msg, args[2]);
+        }
+        break;
+      }
     default:
-      msg.reply({ embed: helpEmbed });
+      msg.reply({ embed: helpEmbedTrading });
   }
 }
 
@@ -173,7 +196,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     tokenDataLookup = data.found;
   } catch (err) {
     console.log(err);
-    msg.channel.send("```Something bad done happened :(```")
+    msg.channel.send("```Something bad done happened :(```");
   }
 
   // Store all the calculated information like price difference and price direction in a summary object so it doesn't
@@ -232,7 +255,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         totalInvested: positionsSummary.openRows.map(row => row.openprice).reduce((prev, next) => prev + next),
         totalValue: positionsSummary.openRows.map(row => {
           if (row.position.toUpperCase() === 'LONG') {
-            return row.openprice;
+            return row.currPrice;
           }
           else {
             return row.openprice + row.priceDiff;
@@ -271,7 +294,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
   */
   let buildPositionsTable = (pageNum) => {
     const HORIZONTAL_DIVIDER = ' ';
-    let tokenDataTable = ['```diff', `\n  #${HORIZONTAL_DIVIDER}    ticker${HORIZONTAL_DIVIDER}pos  ${HORIZONTAL_DIVIDER}          price`];
+    let tokenDataTable = ['```diff', `\n  #${HORIZONTAL_DIVIDER}    ticker${HORIZONTAL_DIVIDER}pos  ${HORIZONTAL_DIVIDER}          price${HORIZONTAL_DIVIDER}rep`];
 
     const upperPageLimit = pageNum * ITEMS_PER_PAGE;
     let maxPage = 0;
@@ -288,7 +311,13 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
       pnlType = 'Realized';
     }
 
-    let summary = '```js' + `\n${utils.padString('               ', utils.toTitleCase(positionsSummary.positionsType) + ' Invested', true)}: $${positionsSummary[summaryType].totalInvested.toFixed(2)}`
+    let summary = '```js'
+      + `\n🇸 ${positionsSummary.openRows.length + positionsSummary.closedRows.length} Self-Reported`
+      + ` | 🇴 0 Other-Reported`
+      + ` | 📖 ${positionsSummary.openRows.length} Open`
+      + ` | 📕 ${positionsSummary.closedRows.length} Closed`
+      + '```'
+      + '```js' + `\n${utils.padString('               ', utils.toTitleCase(positionsSummary.positionsType) + ' Invested', true)}: $${positionsSummary[summaryType].totalInvested.toFixed(2)}`
       + `\n${utils.padString('               ', utils.toTitleCase(positionsSummary.positionsType) + ' Value', true)}: $${positionsSummary[summaryType].totalValue.toFixed(2)}`
       + `\n${utils.padString('               ', pnlType + ' PnL', true)}: $${positionsSummary[summaryType].pnl.toFixed(2)} (${(positionsSummary[summaryType].pnl/positionsSummary[summaryType].totalInvested*100).toFixed(2)}%)`
       + '```';
@@ -312,8 +341,8 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
         // -          BTC LONG  chg $     -2.87 
         // -   2020-05-13        o: $   8910.11 
         // -                     c: $   8907.24
-        tokenDataTable.push(`\n---${HORIZONTAL_DIVIDER}----------${HORIZONTAL_DIVIDER}-----${HORIZONTAL_DIVIDER}---------------`);
-        tokenDataTable.push(`\n${row.priceDirection}${utils.padString('  ', row.posId, true)}${HORIZONTAL_DIVIDER}${utils.padString('          ', row.ticker, true)}${HORIZONTAL_DIVIDER}${utils.padString('     ', row.position.toUpperCase(), false)}${HORIZONTAL_DIVIDER}chg $${utils.padString('           ', utils.padString('          ', row.priceDiff.toFixed(2), true), false)}`);
+        tokenDataTable.push(`\n---${HORIZONTAL_DIVIDER}----------${HORIZONTAL_DIVIDER}-----${HORIZONTAL_DIVIDER}---------------${HORIZONTAL_DIVIDER}---`);
+        tokenDataTable.push(`\n${row.priceDirection}${utils.padString('  ', row.posId, true)}${HORIZONTAL_DIVIDER}${utils.padString('          ', row.ticker, true)}${HORIZONTAL_DIVIDER}${utils.padString('     ', row.position.toUpperCase(), false)}${HORIZONTAL_DIVIDER}chg $${utils.padString('           ', utils.padString('          ', row.priceDiff.toFixed(2), true), false)}🇸`);
         tokenDataTable.push(`\n${row.priceDirection}  ${HORIZONTAL_DIVIDER}${utils.padString('          ', dateformat(row.opendatetime, "yyyy-mm-dd"), true)}${HORIZONTAL_DIVIDER}     ${HORIZONTAL_DIVIDER} o: $${utils.padString('           ', utils.padString('          ', parseFloat(row.openprice).toFixed(2), true), false)}`);
         tokenDataTable.push(`\n${row.priceDirection}  ${HORIZONTAL_DIVIDER}${utils.padString('          ', row.closedatetime ? dateformat(row.closedatetime, "yyyy-mm-dd") : '', true)}${HORIZONTAL_DIVIDER}     ${HORIZONTAL_DIVIDER} c: $${utils.padString('          ', utils.padString('          ', row.currPrice.toFixed(2), true), false)}`); // (${((priceDiff / row.openprice) * 100).toFixed(2)}%)`);
         i++;
@@ -321,6 +350,7 @@ async function getPositions(msg, discordUserId, pageNum, bot) {
     }
     let positionTypeText = positionsSummary.positionsType === OPEN_POSITIONS ? '📖 Open Positions' : '📕 Closed Positions';
     tokenDataTable.push(`\n\n${utils.padString('                    ', positionTypeText, false)}${utils.padString('                ', 'Page ' + pageNum + '/' + maxPage, true)}`);
+    tokenDataTable.push(`\n🇸 Self-Reported`);
     tokenDataTable.push('```');
     return {
       table: '`' + discordUserObj.username + '#' + discordUserObj.discriminator + '\'s Trading Positions`\n' + summary + tokenDataTable.join(''),
@@ -472,8 +502,8 @@ async function openPosition(msg, discordUserId, position, searchTerm) {
     return;
   }
 
-  pgClient.query('INSERT INTO positions(discorduserid, ticker, position, openprice, opendatetime) VALUES($1, $2, $3, $4, current_timestamp) RETURNING *',
-    [discordUserId, tokenData.ticker, position, tokenData.usd],
+  pgClient.query(`INSERT INTO positions(discorduserid, ticker, position, openprice, opendatetime, reportedby) VALUES($1, $2, $3, $4, current_timestamp, $5) RETURNING *`,
+    [discordUserId, tokenData.ticker, position, tokenData.usd, 'S'],
     (err, res) => {
       if (err) {
         console.log(err);
@@ -484,4 +514,81 @@ async function openPosition(msg, discordUserId, position, searchTerm) {
       }
       pgClient.end();
     });
+}
+
+/**
+ * Requests proof that a given user has taken a long or short bias.
+ * Display a dialog of that user's last MAX_MESSAGES messages, and prompts for an index of a message.
+ * The message is then logged as proof in a proof table.
+ * @param {object} msg Used by the bot to reply back or send messages in the discord server
+*/
+async function requestReportProof(msg) {
+  let rpDiscordUserId;
+  let rpDiscordUserObj;
+  for (let [userId, userObj] of msg.mentions.users) {
+    rpDiscordUserId = userId;
+    rpDiscordUserObj = userObj;
+  }
+
+  if (!rpDiscordUserId) {
+    msg.reply({
+      embed: {
+        fields: [ { value: 'Requires a user to report e.g.: `!rp l eth @cucurbit`' } ]
+      }
+    });
+    return;
+  }
+
+  let channelMsgsCache = {
+    proofChosen: false
+  };
+  msg.channel.messages.fetch().then(channelMsgs => {
+    channelMsgs = channelMsgs.filter(channelMsg => channelMsg.author.id === rpDiscordUserId );
+
+    const HORIZONTAL_DIVIDER = ' ';
+    const MAX_MESSAGES = 20;
+    let msgLog = ['```diff', `\n  #${HORIZONTAL_DIVIDER}message`, `\n--- ------------------------------------`];
+    let i = 1;
+    channelMsgs.forEach(channelMsg => {
+      channelMsgsCache[i] = {
+        originalMsg: channelMsg,
+        displayMsg: utils.replaceDiscordMentionIdsWithNames(channelMsg.content, channelMsg.mentions.users).split('`').join('').split("'").join("\'").split('\n').join('')
+      }
+      if (i <= MAX_MESSAGES) {
+        msgLog.push(`\n${utils.padString('   ', i, true)}${HORIZONTAL_DIVIDER}${utils.truncateStr(channelMsgsCache[i].displayMsg, 36)}`);
+      }
+      i++;
+    });
+    msgLog.push('```');
+    msg.reply('`' + `Pulled ${rpDiscordUserObj.username}'s last ${channelMsgs.size} messages from the last 100 messages in the channel.` + '`\n```' + `Choose a message id (1-${channelMsgs.size}) to submit as proof, or 'cancel'.\n` + '```' + msgLog.join(''))
+      .then(sentEmbed => {
+        const filter = user => { return user.id };
+        let collector = msg.channel.createMessageCollector(filter, { time: 30000 });
+        collector.on('collect', reply => {
+          if (reply.author.id === msg.author.id) {
+            if (!channelMsgsCache.proofChosen) {
+              if (channelMsgsCache[reply.content]) {
+                msg.reply('```' + `Registered as proof: ` + '```' + channelMsgsCache[reply.content].displayMsg);
+                channelMsgsCache.proofChosen = true;
+              }
+              else if (reply.content === 'cancel') {
+                msg.reply('```' + `Operation cancelled with no proof chosen.` + '```');
+                channelMsgsCache.proofChosen = true;
+              }
+              else {
+                msg.reply('```"' + `You must choose a message id (1-${channelMsgs.size}) to submit as proof` + '" ```')
+              }
+            }
+          }
+        });
+        collector.on('end', collected => {
+          if (!channelMsgsCache.proofChosen) {
+            msg.reply('```' + `Time expired. No proof was submitted.` + '```');
+          }
+        });
+      });
+  }).catch(err => {
+    console.error(err);
+    msg.channel.send("```Something bad done happened :(```");
+  });
 }

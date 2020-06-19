@@ -82,6 +82,7 @@ bot.on('message', async msg => {
 // p, price: takes tickers or coin names as arguments and then shows a table of prices
 // ping: says "pong"
 // r, random: methods for larkin around
+// report, rt: report someone else's trade
 // t, trade: opens or views trading positions
 let botCmdMap = {
   'comp': msg => {
@@ -104,6 +105,11 @@ let botCmdMap = {
             + '\ne.g.: `!p eth btc "enjin coin" xmr`'
         },
         { name: 'Trading', value: 'To open a list of options for logging and seeing trades, use:\n```!trade\n!t```' },
+        {
+          name: 'Report Position',
+          value: 'To report someone going long, short, or neutral, use:\n```!report <\'long\',\'short\',\'neutral\'> <ticker> <@username>\n!rp <\'l\',\'s\',\'n\'> <ticker> <@username>```'
+            + '\ne.g.: `!rp l eth @cucurbit`'
+        },
         { name: 'Random', value: 'For larkin around:\n```!random\n!r```' }
       ]
     }
@@ -148,6 +154,12 @@ let botCmdMap = {
   },
   'random': async (msg, args, bot) => {
     randomCmds.random(msg, args, bot);
+  },
+  'report': async (msg, args, bot) => {
+    botCmdMap['trade'](msg, args, bot);
+  },
+  'rp': async (msg, args, bot) => {
+    botCmdMap['report'](msg, args, bot);
   },
   't': async (msg, args, bot) => {
     botCmdMap['trade'](msg, args, bot);
