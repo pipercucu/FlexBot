@@ -5,6 +5,9 @@ module.exports = {
 }
 
 async function react(msg) {
+  if (msg.content.toLowerCase().includes('corn')) {
+    msg.react('🌽');
+  }
   if (msg.content.toLowerCase().includes('lmao')) {
     msg.react('🇱')
       .then(() => msg.react('🇲'))

@@ -572,7 +572,7 @@ async function requestReportProof(msg) {
                 channelMsgsCache.proofChosen = true;
               }
               else if (reply.content === 'cancel') {
-                msg.reply('```' + `Operation cancelled with no proof chosen.` + '```');
+                msg.reply('```' + `Report operation cancelled.` + '```');
                 channelMsgsCache.proofChosen = true;
               }
               else {
